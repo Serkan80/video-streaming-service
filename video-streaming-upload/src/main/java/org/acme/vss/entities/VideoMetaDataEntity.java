@@ -20,6 +20,9 @@ public class VideoMetaDataEntity extends ReactivePanacheMongoEntity {
     public String filename;
 
     @NotBlank
+    public String filePath;
+
+    @NotBlank
     public String codec;
 
     @NotBlank
@@ -42,9 +45,10 @@ public class VideoMetaDataEntity extends ReactivePanacheMongoEntity {
     public VideoMetaDataEntity() {
     }
 
-    public VideoMetaDataEntity(String username, String filename, String codec, int bitrate, String description, long size, int width, int heigth) {
+    public VideoMetaDataEntity(String username, String filename, String filePath, String codec, int bitrate, String description, long size, int width, int heigth) {
         this.username = username;
         this.filename = filename;
+        this.filePath = filePath;
         this.codec = codec;
         this.bitrate = bitrate;
         this.description = description;
@@ -54,14 +58,14 @@ public class VideoMetaDataEntity extends ReactivePanacheMongoEntity {
         this.uploadSuccess = true;
     }
 
-    public void markPending(String encoding) {
-        this.status.add(new EncodingStatus(encoding, false));
+    public void markPending(String bitrate) {
+        this.status.add(new EncodingStatus(bitrate, false));
     }
 
-    public static Uni<Void> markUploadFailure(String encoding, String username, String fileName) {
+    public static Uni<Void> markUploadFailure(String bitrate, String username, String fileName) {
         return update("uploadSuccess = false")
-                .where("status.encoding = ?1 AND username = ?2 AND filePath = ?3", encoding, username, fileName)
-                .invoke(() -> Log.infof("Video(name=%s, encoding=%s, uploadSuccess=false) updated", fileName, encoding))
+                .where("status.bitrate = ?1 AND username = ?2 AND inputFilePath = ?3", bitrate, username, fileName)
+                .invoke(() -> Log.infof("Video(name=%s, bitrate=%s, uploadSuccess=false) updated", fileName, bitrate))
                 .replaceWithVoid();
     }
 

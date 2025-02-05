@@ -7,6 +7,7 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.WebApplicationException;
 import org.acme.vss.rest.dto.VideoUploadPOST;
 
 import java.nio.file.Files;
@@ -19,7 +20,7 @@ public class MinioStorage implements FileStorage {
     MinioClient minioClient;
 
     @Override
-    public Uni<String> saveFile(VideoUploadPOST request) {
+    public Uni<Void> saveFile(VideoUploadPOST request) {
         var uploadFolder = "%s/%s/original".formatted(getUploadFolder(), request.username());
         return Uni.createFrom().item(() -> {
                     try {
@@ -31,11 +32,11 @@ public class MinioStorage implements FileStorage {
                                 .stream(Files.newInputStream(file.uploadedFile()), file.size(), -1)
                                 .build());
                     } catch (Exception e) {
-                        throw new RuntimeException("Failed to upload file to Minio", e);
+                        throw new WebApplicationException("Failed to upload file to Minio", e);
                     }
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultExecutor())
-                .map(v -> uploadFolder);
+                .replaceWithVoid();
     }
 
     @Override

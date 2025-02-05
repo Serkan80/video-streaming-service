@@ -5,6 +5,9 @@ import org.acme.vss.rest.dto.VideoUploadPOST;
 
 public interface FileStorage {
 
+    /**
+     * @return returns the path were the video is saved.
+     */
     Uni<String> saveFile(VideoUploadPOST request);
 
     String getUploadFolder();

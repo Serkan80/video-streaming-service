@@ -31,23 +31,22 @@ public class VideoUploadService {
     MutinyEmitter<VideoMetaData> emitter;
 
     public Uni<Void> uploadVideo(VideoUploadPOST request) {
-        return createMetaData(request)
-                .chain(() -> this.fileStorage.saveFile(request))
-                .onItem().transformToMulti(uploadFolder -> sendToQueue(uploadFolder, request.username(), request.fileUpload().fileName()))
+        return this.fileStorage.saveFile(request)
+                .chain(savedFilePath -> createMetaData(request, savedFilePath))
+                .onItem().transformToMulti(this::sendToQueue)
                 .toUni().replaceWithVoid();
     }
 
     public Uni<Void> retryFailedUploads() {
         return VideoMetaDataEntity.findFailedUploads()
                 .flatMap(entity -> {
-                    var uploadFolder = "%s/%s/original".formatted(this.fileStorage.getUploadFolder(), entity.username);
                     Log.infof("Retrying Video(name=%s, bitrate=%d)...", entity.filename, entity.bitrate);
-                    return sendToQueue(uploadFolder, entity.username, entity.filename);
+                    return sendToQueue(entity);
                 })
                 .toUni().replaceWithVoid();
     }
 
-    private Uni<VideoMetaDataEntity> createMetaData(VideoUploadPOST request) {
+    private Uni<VideoMetaDataEntity> createMetaData(VideoUploadPOST request, String savedFilePath) {
         // extract video info command
         var command = "ffprobe -v error -show_entries stream=codec_name,width,height,bit_rate -of json %s"
                 .formatted(request.fileUpload().uploadedFile().toAbsolutePath());
@@ -70,6 +69,7 @@ public class VideoUploadService {
                     var entity = new VideoMetaDataEntity(
                             request.username(),
                             request.fileUpload().fileName(),
+                            savedFilePath,
                             stream.getString("codec_name"),
                             Integer.parseInt(stream.getString("bit_rate", "1")),
                             request.description(),
@@ -80,19 +80,18 @@ public class VideoUploadService {
                     this.encodings.forEach(entity::markPending);
                     return entity;
                 })
-                .call(video -> video.persist()
-                        .invoke(() -> Log.infof("Video(id=%s, name=%s, bitrate=%d, codec=%s) persisted".formatted(video.id.toHexString(), video.filename, video.bitrate, video.codec))));
+                .call(video -> video.persist().invoke(() -> Log.infof("Video(name=%s, bitrate=%d) persisted".formatted(video.filename, video.bitrate))));
     }
 
-    private Multi<Void> sendToQueue(String uploadFolder, String username, String fileName) {
+    private Multi<Void> sendToQueue(VideoMetaDataEntity entity) {
         return Multi.createFrom().items(this.encodings.stream())
                 .onItem().transformToUniAndMerge(bitrate -> {
                     List.of("hls", "dash").forEach(encoding ->
-                            this.emitter.send(new VideoMetaData("%s/%s".formatted(uploadFolder, fileName), bitrate, encoding))
-                                    .invoke(() -> Log.infof("Video(name=%s, bitrate=%s, encoding=%s) sent to queue".formatted(fileName, bitrate, encoding)))
+                            this.emitter.send(VideoMetaData.fromEntity(entity, bitrate, encoding))
+                                    .invoke(() -> Log.infof("Video(name=%s, bitrate=%s, bitrate=%s) sent to queue".formatted(entity.filename, bitrate, encoding)))
                                     .onFailure().call(() -> VideoMetaDataEntity
-                                            .markUploadFailure(encoding, username, fileName)
-                                            .invoke(() -> Log.errorf("Video(name=%s, encoding=%s) failed sending to queue", fileName, encoding))));
+                                            .markUploadFailure(bitrate, entity.username, entity.filename)
+                                            .invoke(() -> Log.errorf("Video(name=%s, bitrate=%s) failed sending to queue", entity.filename, encoding))));
                     return Uni.createFrom().voidItem();
                 });
     }
