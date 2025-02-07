@@ -6,20 +6,24 @@ import jakarta.validation.constraints.Size;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 
-public record VideoUploadPOST(
+public class VideoUploadPOST {
 
-        @NotNull
-        @RestForm("video")
-        FileUpload fileUpload,
+    @NotNull
+    @RestForm("video")
+    public FileUpload fileUpload;
 
-        @NotBlank
-        @RestForm
-        @Size(max = 20)
-        String username,
+    @NotBlank
+    @RestForm
+    @Size(max = 20)
+    public String username;
 
-        @NotBlank
-        @RestForm
-        @Size(max = 100)
-        String description
-) {
+    @NotBlank
+    @RestForm
+    @Size(max = 100)
+    public String description;
+
+    @RestForm
+    @Size(min = 1, max = 10)
+    public String tags;
 }
+

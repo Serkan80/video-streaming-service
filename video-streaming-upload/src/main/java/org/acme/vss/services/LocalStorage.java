@@ -18,11 +18,11 @@ public class LocalStorage implements FileStorage {
 
     @Override
     public Uni<String> saveFile(VideoUploadPOST request) {
-        var uploadFolder = "%s/%s/%s/original".formatted(getUploadFolder(), request.username(), request.fileUpload().fileName().split(".")[0]);
-        var fileUpload = request.fileUpload();
+        var uploadFolder = "%s/%s/%s/original".formatted(getUploadFolder(), request.username, request.fileUpload.fileName().split("\\.")[0]);
+        var fileUpload = request.fileUpload;
 
         return this.vertx.fileSystem().mkdirs(uploadFolder)
-                .call(() -> this.vertx.fileSystem().move(
+                .call(() -> this.vertx.fileSystem().copy(
                                 fileUpload.uploadedFile().toString(),
                                 "%s/%s".formatted(uploadFolder, fileUpload.fileName()),
                                 new CopyOptions().setReplaceExisting(true))

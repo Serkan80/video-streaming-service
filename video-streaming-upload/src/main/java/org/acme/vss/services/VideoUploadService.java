@@ -48,8 +48,9 @@ public class VideoUploadService {
 
     private Uni<VideoMetaDataEntity> createMetaData(VideoUploadPOST request, String savedFilePath) {
         // extract video info command
-        var command = "ffprobe -v error -show_entries stream=codec_name,width,height,bit_rate -of json %s"
-                .formatted(request.fileUpload().uploadedFile().toAbsolutePath());
+        var command = "ffprobe -v error -show_entries stream=codec_name,width,height,bit_rate -of json %s/original/%s"
+                .formatted(savedFilePath, request.fileUpload.fileName());
+        Log.debugf("executing %s", command);
 
         return Uni.createFrom().item(() -> {
                     try {
@@ -67,17 +68,18 @@ public class VideoUploadService {
                 .map(json -> {
                     var stream = json.getJsonArray("streams").getJsonObject(0);
                     var entity = new VideoMetaDataEntity(
-                            request.username(),
-                            request.fileUpload().fileName(),
+                            request.username,
+                            request.fileUpload.fileName(),
                             savedFilePath,
                             stream.getString("codec_name"),
                             Integer.parseInt(stream.getString("bit_rate", "1")),
-                            request.description(),
-                            request.fileUpload().size(),
+                            request.description,
+                            request.fileUpload.size(),
                             stream.getInteger("width"),
                             stream.getInteger("height")
                     );
                     this.encodings.forEach(entity::markPending);
+//                    entity.tags = request.tags();
                     return entity;
                 })
                 .call(video -> video.persist().invoke(() -> Log.infof("Video(name=%s, bitrate=%d) persisted".formatted(video.filename, video.bitrate))));
@@ -85,14 +87,16 @@ public class VideoUploadService {
 
     private Multi<Void> sendToQueue(VideoMetaDataEntity entity) {
         return Multi.createFrom().items(this.encodings.stream())
-                .onItem().transformToUniAndMerge(bitrate -> {
-                    List.of("hls", "dash").forEach(encoding ->
-                            this.emitter.send(VideoMetaData.fromEntity(entity, bitrate, encoding))
-                                    .invoke(() -> Log.infof("Video(name=%s, bitrate=%s, bitrate=%s) sent to queue".formatted(entity.filename, bitrate, encoding)))
-                                    .onFailure().call(() -> VideoMetaDataEntity
-                                            .markUploadFailure(bitrate, entity.username, entity.filename)
-                                            .invoke(() -> Log.errorf("Video(name=%s, bitrate=%s) failed sending to queue", entity.filename, encoding))));
-                    return Uni.createFrom().voidItem();
-                });
+                .onItem().transformToUniAndMerge(bitrate ->
+                        Multi.createFrom().items("hls", "dash")
+                                .onItem().transformToUniAndMerge(encoding ->
+                                        this.emitter.send(VideoMetaData.fromEntity(entity, bitrate, encoding))
+                                                .invoke(() -> Log.infof("Video(name=%s, bitrate=%s, bitrate=%s) sent to queue".formatted(entity.filename, bitrate, encoding)))
+                                                .onFailure().call(() -> VideoMetaDataEntity
+                                                        .markUploadFailure(bitrate, entity.username, entity.filename)
+                                                        .invoke(() -> Log.errorf("Video(name=%s, encoding=%s) failed sending to queue", entity.filename, encoding)))
+                                )
+                                .toUni().replaceWithVoid()
+                );
     }
 }

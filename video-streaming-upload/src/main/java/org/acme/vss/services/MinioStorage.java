@@ -20,11 +20,11 @@ public class MinioStorage implements FileStorage {
     MinioClient minioClient;
 
     @Override
-    public Uni<Void> saveFile(VideoUploadPOST request) {
-        var uploadFolder = "%s/%s/original".formatted(getUploadFolder(), request.username());
+    public Uni<String> saveFile(VideoUploadPOST request) {
+        var uploadFolder = "%s/%s/original".formatted(getUploadFolder(), request.username);
         return Uni.createFrom().item(() -> {
                     try {
-                        var file = request.fileUpload();
+                        var file = request.fileUpload;
                         return this.minioClient.putObject(PutObjectArgs
                                 .builder()
                                 .object(file.fileName())
@@ -36,7 +36,7 @@ public class MinioStorage implements FileStorage {
                     }
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultExecutor())
-                .replaceWithVoid();
+                .map(v -> uploadFolder);
     }
 
     @Override

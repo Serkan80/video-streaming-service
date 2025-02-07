@@ -7,6 +7,7 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -42,6 +43,9 @@ public class VideoMetaDataEntity extends ReactivePanacheMongoEntity {
     public boolean uploadSuccess = true;
     public Set<EncodingStatus> status = new HashSet<>();
 
+    @Size(min = 1, max = 10)
+    public Set<String> tags = new HashSet<>();
+
     public VideoMetaDataEntity() {
     }
 
@@ -59,7 +63,8 @@ public class VideoMetaDataEntity extends ReactivePanacheMongoEntity {
     }
 
     public void markPending(String bitrate) {
-        this.status.add(new EncodingStatus(bitrate, false));
+        this.status.add(new EncodingStatus(bitrate, "hls", false));
+        this.status.add(new EncodingStatus(bitrate, "dash", false));
     }
 
     public static Uni<Void> markUploadFailure(String bitrate, String username, String fileName) {

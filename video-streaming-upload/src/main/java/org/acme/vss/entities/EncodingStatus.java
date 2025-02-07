@@ -1,4 +1,4 @@
 package org.acme.vss.entities;
 
-public record EncodingStatus(String bitrate, boolean done) {
+public record EncodingStatus(String bitrate, String encoding, boolean done) {
 }

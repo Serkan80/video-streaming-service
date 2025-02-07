@@ -1,6 +1,9 @@
 package org.acme;
 
-public record VideoMetaData(String videoId, String inputFilePath, String outputFolder, String bitrate, String encoding) {
+import jakarta.validation.constraints.NotBlank;
+
+public record VideoMetaData(@NotBlank String videoId, @NotBlank String inputFilePath, @NotBlank String outputFolder, @NotBlank String bitrate,
+                            @NotBlank String encoding) {
 
     public String getResolutionSize() {
         return switch (this.bitrate) {
